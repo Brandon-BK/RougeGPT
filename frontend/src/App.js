@@ -18,12 +18,15 @@ import {
   IconButton as MuiIconButton,
   Menu,
   MenuItem,
-  CircularProgress
+  CircularProgress,
+  Tooltip
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import AddIcon from '@mui/icons-material/Add';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import EditIcon from '@mui/icons-material/Edit';
 import './App.css';
 
 function App() {
@@ -42,6 +45,8 @@ function App() {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const messagesEndRef = useRef(null);
   const drawerWidth = 260;
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [editedContent, setEditedContent] = useState('');
 
   // Save conversations to localStorage whenever they change
   useEffect(() => {
@@ -204,6 +209,91 @@ function App() {
 
   const groupedConversations = groupConversationsByDate();
 
+  const handleCopyMessage = (content) => {
+    navigator.clipboard.writeText(content);
+  };
+
+  const handleEditMessage = (message, index) => {
+    setEditingMessage(index);
+    setEditedContent(message.content);
+  };
+
+  const handleSaveEdit = async () => {
+    if (editingMessage === null || !editedContent.trim()) return;
+
+    const updatedMessages = [...messages];
+    updatedMessages[editingMessage] = {
+      ...updatedMessages[editingMessage],
+      content: editedContent
+    };
+
+    // Remove the AI response that followed the edited message
+    if (editingMessage + 1 < updatedMessages.length) {
+      updatedMessages.splice(editingMessage + 1, 1);
+    }
+
+    setMessages(updatedMessages);
+    
+    // Update the conversation in localStorage
+    if (currentConversation) {
+      const updatedConversations = conversations.map(conv =>
+        conv.id === currentConversation
+          ? { ...conv, messages: updatedMessages }
+          : conv
+      );
+      setConversations(updatedConversations);
+      localStorage.setItem('conversations', JSON.stringify(updatedConversations));
+    }
+
+    setEditingMessage(null);
+    setEditedContent('');
+
+    // Trigger a new submission with the edited content
+    try {
+      setIsLoading(true);
+      const response = await fetch('http://localhost:5001/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: editedContent }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const data = await response.json();
+      const assistantMessage = { role: 'assistant', content: data.response };
+      const finalMessages = [...updatedMessages, assistantMessage];
+      setMessages(finalMessages);
+
+      // Update the conversation with the new response
+      if (currentConversation) {
+        const updatedConversations = conversations.map(conv =>
+          conv.id === currentConversation
+            ? { ...conv, messages: finalMessages }
+            : conv
+        );
+        setConversations(updatedConversations);
+        localStorage.setItem('conversations', JSON.stringify(updatedConversations));
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: 'Sorry, I encountered an error. Please try again.' 
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessage(null);
+    setEditedContent('');
+  };
+
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <Drawer
@@ -347,20 +437,96 @@ function App() {
                         : 'rgba(16, 163, 127, 0.05)' // Lighter green for odd messages
                       : 'background.paper',
                     p: 2,
-                    borderRadius: 2
+                    borderRadius: 2,
+                    position: 'relative',
+                    '&:hover .message-actions': {
+                      opacity: 1,
+                    },
                   }}
                 >
-                  <Typography 
-                    variant="body1" 
-                    sx={{ 
-                      whiteSpace: 'pre-wrap',
-                      color: 'text.primary',
-                      fontSize: '1rem',
-                      lineHeight: 1.6
-                    }}
-                  >
-                    {message.content}
-                  </Typography>
+                  {editingMessage === index ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <TextField
+                        multiline
+                        fullWidth
+                        value={editedContent}
+                        onChange={(e) => setEditedContent(e.target.value)}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: 'background.default',
+                          },
+                        }}
+                      />
+                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                        <Button
+                          size="small"
+                          onClick={handleCancelEdit}
+                          sx={{ color: 'text.secondary' }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={handleSaveEdit}
+                          sx={{ bgcolor: 'primary.main' }}
+                        >
+                          Save
+                        </Button>
+                      </Box>
+                    </Box>
+                  ) : (
+                    <>
+                      <Typography 
+                        variant="body1" 
+                        sx={{ 
+                          whiteSpace: 'pre-wrap',
+                          color: 'text.primary',
+                          fontSize: '1rem',
+                          lineHeight: 1.6
+                        }}
+                      >
+                        {message.content}
+                      </Typography>
+                      <Box
+                        className="message-actions"
+                        sx={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 8,
+                          display: 'flex',
+                          gap: 1,
+                          opacity: 0,
+                          transition: 'opacity 0.2s',
+                          backgroundColor: 'background.paper',
+                          borderRadius: 1,
+                          p: 0.5,
+                        }}
+                      >
+                        {message.role === 'assistant' ? (
+                          <Tooltip title="Copy">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleCopyMessage(message.content)}
+                              sx={{ color: 'text.secondary' }}
+                            >
+                              <ContentCopyIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        ) : (
+                          <Tooltip title="Edit">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleEditMessage(message, index)}
+                              sx={{ color: 'text.secondary' }}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
+                    </>
+                  )}
                 </Box>
               </Box>
             ))}
