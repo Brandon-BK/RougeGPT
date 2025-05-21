@@ -27,6 +27,8 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import EditIcon from '@mui/icons-material/Edit';
+import CloseIcon from '@mui/icons-material/Close';
+import MenuIcon from '@mui/icons-material/Menu';
 import './App.css';
 
 function App() {
@@ -44,7 +46,8 @@ function App() {
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const messagesEndRef = useRef(null);
-  const drawerWidth = 260;
+  const [isDrawerOpen, setIsDrawerOpen] = useState(window.innerWidth >= 900);
+  const drawerWidth = { xs: '100%', sm: 260 };
   const [editingMessage, setEditingMessage] = useState(null);
   const [editedContent, setEditedContent] = useState('');
 
@@ -69,6 +72,16 @@ function App() {
       setMessages([]);
     }
   }, [currentConversation, conversations]);
+
+  // Add resize listener
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDrawerOpen(window.innerWidth >= 900);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -297,7 +310,9 @@ function App() {
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       <Drawer
-        variant="permanent"
+        variant={window.innerWidth >= 900 ? "permanent" : "temporary"}
+        open={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
         sx={{
           width: drawerWidth,
           flexShrink: 0,
@@ -309,7 +324,13 @@ function App() {
           },
         }}
       >
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ 
+          p: 2, 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+        }}>
           <Button
             variant="outlined"
             startIcon={<AddIcon />}
@@ -322,12 +343,25 @@ function App() {
                 borderColor: 'rgba(255, 255, 255, 0.3)',
                 backgroundColor: 'rgba(255, 255, 255, 0.1)',
               },
+              mr: window.innerWidth < 900 ? 2 : 0
             }}
           >
             New Chat
           </Button>
+          {window.innerWidth < 900 && (
+            <IconButton
+              onClick={() => setIsDrawerOpen(false)}
+              sx={{ 
+                color: 'white',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                },
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          )}
         </Box>
-        <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
         <List sx={{ overflow: 'auto', height: 'calc(100vh - 80px)' }}>
           {Object.entries(groupedConversations).map(([group, convs]) => (
             convs.length > 0 && (
@@ -392,9 +426,35 @@ function App() {
       </Drawer>
 
       <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-        <AppBar position="static" color="transparent" elevation={0}>
+        <AppBar 
+          position="static" 
+          color="transparent" 
+          elevation={0}
+          sx={{
+            backgroundColor: 'background.paper',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          }}
+        >
           <Toolbar>
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            {window.innerWidth < 900 && (
+              <IconButton
+                edge="start"
+                color="inherit"
+                aria-label="menu"
+                onClick={() => setIsDrawerOpen(true)}
+                sx={{ mr: 2 }}
+              >
+                <MenuIcon />
+              </IconButton>
+            )}
+            <Typography 
+              variant="h6" 
+              component="div" 
+              sx={{ 
+                flexGrow: 1,
+                fontSize: { xs: '1rem', sm: '1.25rem' }
+              }}
+            >
               {currentConversation ? conversations.find(c => c.id === currentConversation)?.title : 'New Chat'}
             </Typography>
           </Toolbar>
@@ -406,8 +466,9 @@ function App() {
             flexGrow: 1, 
             display: 'flex', 
             flexDirection: 'column',
-            py: 2,
-            height: 'calc(100vh - 64px)'
+            py: { xs: 1, sm: 2 },
+            height: 'calc(100vh - 64px)',
+            px: { xs: 1, sm: 2 }
           }}
         >
           <Box 
@@ -415,7 +476,7 @@ function App() {
               flexGrow: 1, 
               overflow: 'auto', 
               mb: 2,
-              px: 2
+              px: { xs: 0, sm: 2 }
             }}
           >
             {messages.map((message, index) => (
@@ -429,14 +490,14 @@ function App() {
               >
                 <Box
                   sx={{
-                    maxWidth: '800px',
+                    maxWidth: { xs: '100%', sm: '800px' },
                     width: '100%',
                     backgroundColor: message.role === 'user' 
                       ? index % 2 === 0 
-                        ? 'rgba(16, 163, 127, 0.1)'  // Light green for even messages
-                        : 'rgba(16, 163, 127, 0.05)' // Lighter green for odd messages
+                        ? 'rgba(16, 163, 127, 0.1)'
+                        : 'rgba(16, 163, 127, 0.05)'
                       : 'background.paper',
-                    p: 2,
+                    p: { xs: 1.5, sm: 2 },
                     borderRadius: 2,
                     position: 'relative',
                     '&:hover .message-actions': {
@@ -540,10 +601,10 @@ function App() {
               >
                 <Box
                   sx={{
-                    maxWidth: '800px',
+                    maxWidth: { xs: '100%', sm: '800px' },
                     width: '100%',
                     backgroundColor: 'background.paper',
-                    p: 2,
+                    p: { xs: 1.5, sm: 2 },
                     borderRadius: 2,
                     display: 'flex',
                     alignItems: 'center',
@@ -555,7 +616,7 @@ function App() {
                     variant="body1" 
                     sx={{ 
                       color: 'text.primary',
-                      fontSize: '1rem',
+                      fontSize: { xs: '0.875rem', sm: '1rem' },
                       lineHeight: 1.6
                     }}
                   >
@@ -570,16 +631,16 @@ function App() {
           <Box
             sx={{
               position: 'relative',
-              maxWidth: '800px',
+              maxWidth: { xs: '100%', sm: '800px' },
               width: '100%',
               mx: 'auto',
-              px: 2
+              px: { xs: 0, sm: 2 }
             }}
           >
             <Paper
               elevation={3}
               sx={{
-                p: 2,
+                p: { xs: 1, sm: 2 },
                 display: 'flex',
                 alignItems: 'flex-end',
                 gap: 1,
@@ -609,6 +670,9 @@ function App() {
                     '&.Mui-focused fieldset': {
                       borderColor: 'primary.main',
                     },
+                  },
+                  '& .MuiInputBase-input': {
+                    fontSize: { xs: '0.875rem', sm: '1rem' },
                   },
                 }}
               />
