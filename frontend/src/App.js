@@ -101,7 +101,7 @@ function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5001/api/chat', {
+      const response = await fetch('https://rougegpt-api.onrender.com/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -264,7 +264,7 @@ function App() {
     // Trigger a new submission with the edited content
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:5001/api/chat', {
+      const response = await fetch('https://rougegpt-api.onrender.com/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
