@@ -13,36 +13,57 @@ import {
   ListItem,
   ListItemText,
   ListItemButton,
+  Button,
   Divider,
   IconButton as MuiIconButton,
   Menu,
   MenuItem,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
   CircularProgress
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import AddIcon from '@mui/icons-material/Add';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
 import './App.css';
 
 function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [conversations, setConversations] = useState([]);
-  const [currentConversation, setCurrentConversation] = useState(null);
+  const [conversations, setConversations] = useState(() => {
+    const savedConversations = localStorage.getItem('conversations');
+    return savedConversations ? JSON.parse(savedConversations) : [];
+  });
+  const [currentConversation, setCurrentConversation] = useState(() => {
+    const savedCurrentConversation = localStorage.getItem('currentConversation');
+    return savedCurrentConversation ? JSON.parse(savedCurrentConversation) : null;
+  });
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
-  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
   const messagesEndRef = useRef(null);
   const drawerWidth = 260;
+
+  // Save conversations to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('conversations', JSON.stringify(conversations));
+  }, [conversations]);
+
+  // Save current conversation to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('currentConversation', JSON.stringify(currentConversation));
+  }, [currentConversation]);
+
+  // Load messages when current conversation changes
+  useEffect(() => {
+    if (currentConversation) {
+      const conversation = conversations.find(conv => conv.id === currentConversation);
+      if (conversation) {
+        setMessages(conversation.messages);
+      }
+    } else {
+      setMessages([]);
+    }
+  }, [currentConversation, conversations]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -117,7 +138,6 @@ function App() {
   };
 
   const handleNewChat = () => {
-    // Only clear the current view, don't affect the conversations list
     setMessages([]);
     setCurrentConversation(null);
     setInput('');
@@ -126,10 +146,10 @@ function App() {
 
   const handleConversationClick = (conversation) => {
     setCurrentConversation(conversation.id);
-    setMessages(conversation.messages);
   };
 
   const handleMenuClick = (event, conversation) => {
+    event.stopPropagation();
     setAnchorEl(event.currentTarget);
     setSelectedConversation(conversation);
   };
@@ -139,26 +159,21 @@ function App() {
     setSelectedConversation(null);
   };
 
-  const handleRenameClick = () => {
-    setNewTitle(selectedConversation.title);
-    setRenameDialogOpen(true);
-    handleMenuClose();
-  };
-
-  const handleRenameConfirm = () => {
-    setConversations(conversations.map(conv =>
-      conv.id === selectedConversation.id
-        ? { ...conv, title: newTitle }
-        : conv
-    ));
-    setRenameDialogOpen(false);
-  };
-
   const handleDeleteClick = () => {
-    setConversations(conversations.filter(conv => conv.id !== selectedConversation.id));
-    if (currentConversation === selectedConversation.id) {
-      setMessages([]);
-      setCurrentConversation(null);
+    if (selectedConversation) {
+      const updatedConversations = conversations.filter(conv => conv.id !== selectedConversation.id);
+      
+      // Update state
+      setConversations(updatedConversations);
+      
+      // Update localStorage directly
+      localStorage.setItem('conversations', JSON.stringify(updatedConversations));
+      
+      if (currentConversation === selectedConversation.id) {
+        setMessages([]);
+        setCurrentConversation(null);
+        localStorage.removeItem('currentConversation');
+      }
     }
     handleMenuClose();
   };
@@ -263,11 +278,17 @@ function App() {
                       />
                       <MuiIconButton
                         size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMenuClick(e, conversation);
+                        onClick={(e) => handleMenuClick(e, conversation)}
+                        aria-label={`Options for ${conversation.title}`}
+                        aria-haspopup="true"
+                        aria-expanded={Boolean(anchorEl) && selectedConversation?.id === conversation.id}
+                        sx={{ 
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          '&:focus': {
+                            outline: '2px solid rgba(255, 255, 255, 0.3)',
+                            outlineOffset: '2px',
+                          },
                         }}
-                        sx={{ color: 'rgba(255, 255, 255, 0.5)' }}
                       >
                         <MoreVertIcon />
                       </MuiIconButton>
@@ -447,64 +468,21 @@ function App() {
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
+        onClick={handleMenuClose}
         sx={{
           '& .MuiPaper-root': {
             backgroundColor: '#202123',
             color: 'white',
           },
         }}
+        MenuListProps={{
+          'aria-labelledby': 'conversation-menu-button',
+        }}
       >
-        <MenuItem onClick={handleRenameClick}>
-          <EditIcon sx={{ mr: 1 }} /> Rename
-        </MenuItem>
         <MenuItem onClick={handleDeleteClick}>
           <DeleteIcon sx={{ mr: 1 }} /> Delete
         </MenuItem>
       </Menu>
-
-      <Dialog
-        open={renameDialogOpen}
-        onClose={() => setRenameDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            backgroundColor: '#202123',
-            color: 'white',
-          },
-        }}
-      >
-        <DialogTitle>Rename Conversation</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            fullWidth
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                color: 'white',
-                '& fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.2)',
-                },
-                '&:hover fieldset': {
-                  borderColor: 'rgba(255, 255, 255, 0.3)',
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: 'primary.main',
-                },
-              },
-            }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRenameDialogOpen(false)} sx={{ color: 'white' }}>
-            Cancel
-          </Button>
-          <Button onClick={handleRenameConfirm} sx={{ color: 'primary.main' }}>
-            Rename
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }
